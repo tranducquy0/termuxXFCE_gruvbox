@@ -513,7 +513,6 @@ cat <<'EOF' > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
       <property name="square-icons" type="bool" value="true"/>
       <property name="known-legacy-items" type="array">
         <value type="string" value="vesktop"/>
-        <value type="string" value="onboard"/>
       </property>
     </property>
     <property name="plugin-8" type="string" value="clock">
