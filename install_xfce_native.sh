@@ -870,10 +870,40 @@ alias cat='bat '
 eval "$(starship init bash)"
 " >> $PREFIX/var/lib/proot-distro/installed-rootfs/debian/home/$username/.bashrc
 
-# Set proot timezone
+# Set proot timezone (normalize Android's legacy zone IDs first).
+# Android (Google) still hands out legacy IANA IDs that were canonicalized
+# in tzdata (e.g. Asia/Saigon), and Debian bookworm+ no longer ships those
+# backward-compat links in /usr/share/zoneinfo (they moved to tzdata-legacy),
+# so map the known renames to the current Linux zone IDs.
 timezone=$(getprop persist.sys.timezone)
-pd login debian --shared-tmp -- env DISPLAY=:0 rm /etc/localtime
-pd login debian --shared-tmp -- env DISPLAY=:0 cp /usr/share/zoneinfo/$timezone /etc/localtime
+case "$timezone" in
+    Asia/Saigon)          timezone="Asia/Ho_Chi_Minh" ;;
+    Asia/Ujung_Pandang)   timezone="Asia/Makassar" ;;
+    Asia/Ulan_Bator)      timezone="Asia/Ulaanbaatar" ;;
+    Asia/Katmandu)        timezone="Asia/Kathmandu" ;;
+    Asia/Calcutta)        timezone="Asia/Kolkata" ;;
+    Asia/Rangoon)         timezone="Asia/Yangon" ;;
+    Europe/Kiev)          timezone="Europe/Kyiv" ;;
+    America/Buenos_Aires) timezone="America/Argentina/Buenos_Aires" ;;
+    Africa/Asmera)        timezone="Africa/Asmara" ;;
+    Pacific/Enderbury)    timezone="Pacific/Kanton" ;;
+esac
+
+ZONEINFO_FILE=$PREFIX/var/lib/proot-distro/installed-rootfs/debian/usr/share/zoneinfo/$timezone
+if [ ! -e "$ZONEINFO_FILE" ]; then
+    # Unknown/unmapped legacy alias: pull in Debian's legacy links package
+    echo "Timezone '$timezone' not provided by Debian tzdata, installing tzdata-legacy..."
+    pd login debian --shared-tmp -- env DISPLAY=:0 apt install -y tzdata-legacy 2>/dev/null || true
+fi
+
+if [ -e "$ZONEINFO_FILE" ]; then
+    print_status "ok" "Debian proot timezone: $timezone"
+    pd login debian --shared-tmp -- env DISPLAY=:0 rm -f /etc/localtime
+    pd login debian --shared-tmp -- env DISPLAY=:0 cp /usr/share/zoneinfo/$timezone /etc/localtime
+    echo "$timezone" > $PREFIX/var/lib/proot-distro/installed-rootfs/debian/etc/timezone
+else
+    print_status "warn" "Timezone '$timezone' not found in proot; keeping default (UTC)"
+fi
 
 # Setup GPU passthrough in proot (per GPU vendor)
 if [[ "$GPU_VENDOR" == "mali" ]]; then
