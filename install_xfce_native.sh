@@ -188,7 +188,7 @@ else
 fi
 
 # Install core dependencies
-dependencies=('wget' 'proot-distro' 'x11-repo' 'tur-repo' 'pulseaudio' 'git' 'sassc')
+dependencies=('wget' 'proot-distro' 'x11-repo' 'unzip' 'pulseaudio' 'sassc')
 missing_deps=()
 for dep in "${dependencies[@]}"; do
     if ! command -v "$dep" &> /dev/null; then
@@ -209,11 +209,14 @@ mkdir -p "$HOME/Desktop" "$HOME/Downloads" "$HOME/.fonts" "$HOME/.config" "$HOME
 #ln -s /storage/emulated/0/Pictures $HOME/Pictures
 
 # Install XFCE desktop environment (+ GPU passthrough support)
+# Only base xfce4 is pulled - the configured panel plugins (menu, clock,
+# tasklist, systray, pulseaudio, launchers) all ship in the xfce4 meta
+# package, so xfce4-goodies' extra plugins are not needed.
 # Vulkan ICD depends on the GPU vendor:
 #  - Mali  (e.g. Mali-G57 Valhall): Venus (virtio) ICD, Vulkan calls are
 #    proxied to the Mali vendor driver via virglrenderer-android --venus
 #  - Adreno: Turnip (freedreno/kgsl) ICD, native Adreno Vulkan
-xfce_packages=('xfce4' 'xfce4-goodies' 'xfce4-pulseaudio-plugin' 'firefox' 'starship' 'termux-x11-nightly' 'virglrenderer-android' 'fastfetch' 'papirus-icon-theme' 'eza' 'bat')
+xfce_packages=('xfce4' 'xfce4-pulseaudio-plugin' 'firefox' 'starship' 'termux-x11-nightly' 'virglrenderer-android' 'eza' 'bat')
 if [[ "$GPU_VENDOR" == "mali" ]]; then
     xfce_packages+=('mesa-vulkan-icd-virtio')
 else
@@ -630,7 +633,7 @@ cat <<EOF > $HOME/.config/xfce4/panel/launcher-10/17367088062.desktop
 Version=1.0
 Type=Application
 Exec=exo-open --launch FileManager %u
-Icon=user-blue-home
+Icon=system-file-manager
 StartupNotify=true
 Terminal=false
 Categories=Utility;X-XFCE;X-Xfce-Toplevel;
