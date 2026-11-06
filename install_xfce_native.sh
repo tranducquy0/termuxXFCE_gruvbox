@@ -249,6 +249,9 @@ wget https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme/archive/refs/heads/ma
 tar -xzf master.tar.gz
 bash Gruvbox-GTK-Theme-master/themes/install.sh -d "$PREFIX/share/themes" -c dark
 rm -rf Gruvbox-GTK-Theme-master master.tar.gz
+# sassc is only needed to build the theme above - drop it again to keep
+# the package footprint small
+pkg uninstall -y sassc 2>/dev/null || true
 
 # Install Gruvbox-Plus-Dark Icon Theme
 wget -O gruvbox-plus-icon-pack-master.tar.gz https://github.com/SylEleuth/gruvbox-plus-icon-pack/archive/refs/heads/master.tar.gz
@@ -837,13 +840,15 @@ StartupNotify=false
 chmod +x $PREFIX/share/applications/cp2menu.desktop
 
 # Install Debian proot
-pkgs_proot=('sudo' 'onboard' 'conky-all' 'flameshot')
+pkgs_proot=('sudo' 'conky-all' 'flameshot')
 
-# Install Debian proot
+# Install Debian proot (slimmed down: no recommends, no caches left behind)
 pd install debian
 pd login debian --shared-tmp -- env DISPLAY=:0 apt update
 pd login debian --shared-tmp -- env DISPLAY=:0 apt upgrade -y
-pd login debian --shared-tmp -- env DISPLAY=:0 apt install "${pkgs_proot[@]}" -y -o Dpkg::Options::="--force-confold"
+pd login debian --shared-tmp -- env DISPLAY=:0 apt install "${pkgs_proot[@]}" -y --no-install-recommends -o Dpkg::Options::="--force-confold"
+pd login debian --shared-tmp -- env DISPLAY=:0 apt autoremove -y
+pd login debian --shared-tmp -- env DISPLAY=:0 apt clean
 
 # Create user
 pd login debian --shared-tmp -- env DISPLAY=:0 groupadd storage
@@ -911,6 +916,11 @@ cp $PREFIX/var/lib/proot-distro/installed-rootfs/debian/usr/share/applications/o
 sed -i 's|^Exec=.*$|Exec=prun flameshot|' $HOME/.config/autostart/org.flameshot.Flameshot.desktop
 
 chmod +x $HOME/.config/autostart/*.desktop
+
+# Free disk space: remove orphaned auto-installed packages (e.g. libsass
+# left behind by the removed sassc) and purge downloaded .deb caches
+pkg autoremove -y 2>/dev/null || true
+apt-get clean 2>/dev/null || true
 
 }
 
