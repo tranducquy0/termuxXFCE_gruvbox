@@ -809,25 +809,10 @@ EOF
 chmod +x $PREFIX/bin/zrunhud
 sed -i "s/__ZRUN_GPU_ENV__/$ZRUN_GPU_ENV/" $PREFIX/bin/zrunhud
 
-# App Installer
-
-git clone https://github.com/phoenixbyrd/App-Installer.git $HOME/.config/App-Installer
-chmod +x $HOME/.config/App-Installer/*
-
-echo "[Desktop Entry]
-Version=1.0
-Type=Application
-Name=App Installer
-Comment=
-Exec=/data/data/com.termux/files/home/.config/App-Installer/app-installer
-Icon=package-install
-Categories=System;
-Path=
-Terminal=false
-StartupNotify=false
-" > $HOME/Desktop/App-Installer.desktop
-chmod +x $HOME/Desktop/App-Installer.desktop
-cp $HOME/Desktop/App-Installer.desktop $PREFIX/share/applications
+# Remove the App-Installer (GTK app store) installed by this repo before,
+# and clean up leftovers from previous runs of the old script
+rm -rf $HOME/.config/App-Installer
+rm -f $HOME/Desktop/App-Installer.desktop $PREFIX/share/applications/App-Installer.desktop
 
 # cp2menu
 
