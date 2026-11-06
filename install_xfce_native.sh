@@ -165,7 +165,7 @@ else
 fi
 
 # Install core dependencies
-dependencies=('wget' 'proot-distro' 'x11-repo' 'tur-repo' 'pulseaudio' 'git')
+dependencies=('wget' 'proot-distro' 'x11-repo' 'tur-repo' 'pulseaudio' 'git' 'sassc')
 missing_deps=()
 for dep in "${dependencies[@]}"; do
     if ! command -v "$dep" &> /dev/null; then
@@ -209,13 +209,17 @@ sed -i "s/phoenixbyrd/$username/" $HOME/.config/starship.toml
 wget https://raw.githubusercontent.com/phoenixbyrd/Termux_XFCE/main/dark_waves.png
 mv dark_waves.png $PREFIX/share/backgrounds/xfce/
 
-# Install WhiteSur-Dark Theme
-wget https://github.com/vinceliuice/WhiteSur-gtk-theme/archive/refs/tags/2023-04-26.zip
-unzip 2023-04-26.zip
-tar -xf WhiteSur-gtk-theme-2023-04-26/release/WhiteSur-Dark-44-0.tar.xz
-mv WhiteSur-Dark/ $PREFIX/share/themes/
-rm -rf WhiteSur*
-rm 2023-04-26.zip
+# Install Gruvbox GTK Theme (GTK2/GTK3/GTK4 + xfwm4 -> Gruvbox-Dark)
+wget https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme/archive/refs/heads/master.tar.gz
+tar -xzf master.tar.gz
+bash Gruvbox-GTK-Theme-master/themes/install.sh -d "$PREFIX/share/themes" -c dark
+rm -rf Gruvbox-GTK-Theme-master master.tar.gz
+
+# Install Gruvbox-Plus-Dark Icon Theme
+wget https://github.com/SylEleuth/gruvbox-plus-icon-pack/archive/refs/heads/master.tar.gz
+tar -xzf gruvbox-plus-icon-pack-master.tar.gz gruvbox-plus-icon-pack-master/Gruvbox-Plus-Dark
+mv gruvbox-plus-icon-pack-master/Gruvbox-Plus-Dark $PREFIX/share/icons/
+rm -rf gruvbox-plus-icon-pack-master gruvbox-plus-icon-pack-master.tar.gz
 
 # Install Fluent Cursor Icon Theme
 wget https://github.com/vinceliuice/Fluent-icon-theme/archive/refs/tags/2023-02-01.zip
@@ -231,8 +235,8 @@ cat <<'EOF' > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
 
 <channel name="xsettings" version="1.0">
   <property name="Net" type="empty">
-    <property name="ThemeName" type="string" value="WhiteSur-Dark"/>
-    <property name="IconThemeName" type="string" value="Papirus-Dark"/>
+    <property name="ThemeName" type="string" value="Gruvbox-Dark"/>
+    <property name="IconThemeName" type="string" value="Gruvbox-Plus-Dark"/>
     <property name="DoubleClickTime" type="empty"/>
     <property name="DoubleClickDistance" type="empty"/>
     <property name="DndDragThreshold" type="empty"/>
@@ -264,8 +268,8 @@ cat <<'EOF' > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
     <property name="DecorationLayout" type="string" value="icon,menu:minimize,maximize,close"/>
     <property name="DialogsUseHeader" type="empty"/>
     <property name="TitlebarMiddleClick" type="empty"/>
-    <property name="ThemeName" type="string" value="WhiteSur-Dark"/>
-    <property name="IconThemeName" type="string" value="Papirus-Dark"/>
+    <property name="ThemeName" type="string" value="Gruvbox-Dark"/>
+    <property name="IconThemeName" type="string" value="Gruvbox-Plus-Dark"/>
   </property>
   <property name="Gdk" type="empty">
     <property name="WindowScalingFactor" type="empty"/>
@@ -281,7 +285,7 @@ cat <<'EOF' > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml
 
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
-    <property name="theme" type="string" value="WhiteSur-Dark"/>
+    <property name="theme" type="string" value="Gruvbox-Dark"/>
     <property name="title_alignment" type="string" value="center"/>
     <property name="button_layout" type="string" value="O|HMC"/>
     <property name="workspace_count" type="int" value="1"/>
