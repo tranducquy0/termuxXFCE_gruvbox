@@ -101,6 +101,18 @@ detect_termux() {
     fi
 }
 
+# Function to detect GPU vendor (picks the right passthrough driver)
+gpu_detect() {
+    local gpu_egl=$(getprop ro.hardware.egl 2>/dev/null || true)
+    local gpu_vk=$(getprop ro.hardware.vulkan 2>/dev/null || true)
+    case "${gpu_egl} ${gpu_vk}" in
+        *[Aa]dreno*) GPU_VENDOR="adreno" ;;
+        *[Mm]ali*)   GPU_VENDOR="mali" ;;
+        *)           GPU_VENDOR="unknown" ;;
+    esac
+    print_status "ok" "GPU detected: ${GPU_VENDOR} (EGL: ${gpu_egl:-n/a}, Vulkan: ${gpu_vk:-n/a})"
+}
+
 # Main installation function
 main() {
     clear
@@ -117,6 +129,17 @@ main() {
         echo "• At least 4GB free storage"
         echo "• At least 2GB RAM recommended"
         exit 1
+    fi
+
+    # Detect the host GPU (Mali / Adreno) to choose the GPU passthrough path
+    gpu_detect
+
+    # Vulkan/GL flags used by the zrun/zrunhud helpers in proot
+    if [[ "$GPU_VENDOR" == "mali" ]]; then
+        # Mali: GL passthrough through virgl (zink/turnip flags are Adreno-only)
+        ZRUN_GPU_ENV="GALLIUM_DRIVER=virpipe"
+    else
+        ZRUN_GPU_ENV="MESA_LOADER_DRIVER_OVERRIDE=zink TU_DEBUG=noconform"
     fi
 
     echo -e "\n${GREEN}This will install XFCE native desktop in Termux"
@@ -185,8 +208,17 @@ mkdir -p "$HOME/Desktop" "$HOME/Downloads" "$HOME/.fonts" "$HOME/.config" "$HOME
 #ln -s /storage/emulated/0/Music $HOME/Music
 #ln -s /storage/emulated/0/Pictures $HOME/Pictures
 
-# Install XFCE desktop environment
-xfce_packages=('xfce4' 'xfce4-goodies' 'xfce4-pulseaudio-plugin' 'firefox' 'starship' 'termux-x11-nightly' 'virglrenderer-android' 'mesa-vulkan-icd-freedreno-dri3' 'fastfetch' 'papirus-icon-theme' 'eza' 'bat')
+# Install XFCE desktop environment (+ GPU passthrough support)
+# Vulkan ICD depends on the GPU vendor:
+#  - Mali  (e.g. Mali-G57 Valhall): Venus (virtio) ICD, Vulkan calls are
+#    proxied to the Mali vendor driver via virglrenderer-android --venus
+#  - Adreno: Turnip (freedreno/kgsl) ICD, native Adreno Vulkan
+xfce_packages=('xfce4' 'xfce4-goodies' 'xfce4-pulseaudio-plugin' 'firefox' 'starship' 'termux-x11-nightly' 'virglrenderer-android' 'fastfetch' 'papirus-icon-theme' 'eza' 'bat')
+if [[ "$GPU_VENDOR" == "mali" ]]; then
+    xfce_packages+=('mesa-vulkan-icd-virtio')
+else
+    xfce_packages+=('mesa-vulkan-icd-freedreno-dri3')
+fi
 if ! pkg install -y "${xfce_packages[@]}" -o Dpkg::Options::="--force-confold"; then
     echo "Failed to install XFCE packages. Exiting."
     exit 1
@@ -690,12 +722,17 @@ gpu_check() {
     # Combine unique GPU information
     detected_gpu="$(echo -e "$gpu_egl\n$gpu_vulkan" | sort -u | tr '\n' ' ' | sed 's/ $//')"
 
+    # Adreno: native Turnip/KGSL Vulkan + virgl GL passthrough
+    # Mali (e.g. Mali-G57, Valhall): virgl GL passthrough via ANGLE plus the
+    # Venus protocol (--venus) so Vulkan calls are proxied to the Mali vendor
+    # driver through the Android rendernode (true GPU passthrough, no root)
     if echo "$detected_gpu" | grep -iq "adreno"; then
         echo "GPU detected: $detected_gpu"
         MESA_NO_ERROR=1 MESA_GL_VERSION_OVERRIDE=4.3COMPAT MESA_GLES_VERSION_OVERRIDE=3.2 LIBGL_DRI3_DISABLE=1 virgl_test_server_android & > /dev/null 2>&1
     elif echo "$detected_gpu" | grep -iq "mali"; then
         echo "GPU detected: $detected_gpu"
-        MESA_NO_ERROR=1 MESA_GL_VERSION_OVERRIDE=4.3COMPAT MESA_GLES_VERSION_OVERRIDE=3.2 LIBGL_DRI3_DISABLE=1 virgl_test_server_android --angle-gl & > /dev/null 2>&1
+        echo "GPU passthrough: virgl (ANGLE GL) + Venus Vulkan for Mali"
+        MESA_NO_ERROR=1 MESA_GL_VERSION_OVERRIDE=4.3COMPAT MESA_GLES_VERSION_OVERRIDE=3.2 LIBGL_DRI3_DISABLE=1 virgl_test_server_android --angle-gl --venus & > /dev/null 2>&1
     else
         echo "Unknown GPU type detected: $detected_gpu"
         exit 1
@@ -756,19 +793,21 @@ chmod +x $PREFIX/bin/prun
 cat <<'EOF' > $PREFIX/bin/zrun
 #!/bin/bash
 varname=$(basename $PREFIX/var/lib/proot-distro/installed-rootfs/debian/home/*)
-pd login debian --user $varname --shared-tmp -- env DISPLAY=:0 MESA_LOADER_DRIVER_OVERRIDE=zink TU_DEBUG=noconform $@
+pd login debian --user $varname --shared-tmp -- env DISPLAY=:0 __ZRUN_GPU_ENV__ $@
 
 EOF
 chmod +x $PREFIX/bin/zrun
+sed -i "s/__ZRUN_GPU_ENV__/$ZRUN_GPU_ENV/" $PREFIX/bin/zrun
 
 # Create zrunhud script
 cat <<'EOF' > $PREFIX/bin/zrunhud
 #!/bin/bash
 varname=$(basename $PREFIX/var/lib/proot-distro/installed-rootfs/debian/home/*)
-pd login debian --user $varname --shared-tmp -- env DISPLAY=:0 MESA_LOADER_DRIVER_OVERRIDE=zink TU_DEBUG=noconform GALLIUM_HUD=fps $@
+pd login debian --user $varname --shared-tmp -- env DISPLAY=:0 __ZRUN_GPU_ENV__ GALLIUM_HUD=fps $@
 
 EOF
 chmod +x $PREFIX/bin/zrunhud
+sed -i "s/__ZRUN_GPU_ENV__/$ZRUN_GPU_ENV/" $PREFIX/bin/zrunhud
 
 # App Installer
 
@@ -844,9 +883,19 @@ timezone=$(getprop persist.sys.timezone)
 pd login debian --shared-tmp -- env DISPLAY=:0 rm /etc/localtime
 pd login debian --shared-tmp -- env DISPLAY=:0 cp /usr/share/zoneinfo/$timezone /etc/localtime
 
-# Setup Hardware Acceleration in proot
-pd login debian --shared-tmp -- env DISPLAY=:0 wget https://github.com/phoenixbyrd/Termux_XFCE/raw/main/mesa-vulkan-kgsl_24.1.0-devel-20240120_arm64.deb
-pd login debian --shared-tmp -- env DISPLAY=:0 sudo apt install -y ./mesa-vulkan-kgsl_24.1.0-devel-20240120_arm64.deb
+# Setup GPU passthrough in proot (per GPU vendor)
+if [[ "$GPU_VENDOR" == "mali" ]]; then
+    # Mali (e.g. Mali-G57 / Valhall): the KGSL/Turnip driver below is
+    # packaged for Debian proot, so it must NOT be installed here. GL is
+    # passed through via virgl (GALLIUM_DRIVER=virpipe, see $PREFIX/bin/start,
+    # which runs the server with --angle-gl) and Vulkan via the Venus
+    # protocol (virgl server started with --venus on Mali hosts).
+    echo "GPU passthrough for proot (Mali): virgl GL (virpipe) + Venus Vulkan"
+else
+    # Adreno: install the KGSL Vulkan passthrough driver in proot
+    pd login debian --shared-tmp -- env DISPLAY=:0 wget https://github.com/phoenixbyrd/Termux_XFCE/raw/main/mesa-vulkan-kgsl_24.1.0-devel-20240120_arm64.deb
+    pd login debian --shared-tmp -- env DISPLAY=:0 sudo apt install -y ./mesa-vulkan-kgsl_24.1.0-devel-20240120_arm64.deb
+fi
 
 mkdir -p $PREFIX/var/lib/proot-distro/installed-rootfs/debian/home/$username/.config/
 
