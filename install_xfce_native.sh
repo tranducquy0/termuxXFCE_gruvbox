@@ -248,7 +248,7 @@ bash Gruvbox-GTK-Theme-master/themes/install.sh -d "$PREFIX/share/themes" -c dar
 rm -rf Gruvbox-GTK-Theme-master master.tar.gz
 
 # Install Gruvbox-Plus-Dark Icon Theme
-wget https://github.com/SylEleuth/gruvbox-plus-icon-pack/archive/refs/heads/master.tar.gz
+wget -O gruvbox-plus-icon-pack-master.tar.gz https://github.com/SylEleuth/gruvbox-plus-icon-pack/archive/refs/heads/master.tar.gz
 tar -xzf gruvbox-plus-icon-pack-master.tar.gz gruvbox-plus-icon-pack-master/Gruvbox-Plus-Dark
 mv gruvbox-plus-icon-pack-master/Gruvbox-Plus-Dark $PREFIX/share/icons/
 rm -rf gruvbox-plus-icon-pack-master gruvbox-plus-icon-pack-master.tar.gz
